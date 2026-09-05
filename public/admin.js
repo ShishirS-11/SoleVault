@@ -1,19 +1,14 @@
 let editing=null;
-const $=x=>document.getElementById(x),money=n=>"₹"+Number(n).toLocaleString("en-IN");
-async function refresh(){
- const [ps,os,st]=await Promise.all([fetch("/api/products").then(r=>r.json()),fetch("/api/orders").then(r=>r.json()),fetch("/api/stats").then(r=>r.json())]);
- window.products=ps;$("productsStat").textContent=st.products;$("stockStat").textContent=st.lowStock;$("ordersStat").textContent=st.orders;$("revenueStat").textContent=money(st.revenue);
- renderProducts();renderOrders(os);
-}
-function renderProducts(){
- const q=$("search").value.toLowerCase();
- $("productRows").innerHTML=products.filter(p=>p.name.toLowerCase().includes(q)||p.category.toLowerCase().includes(q)).map(p=>`<tr><td><img src="${p.image}">${p.name}</td><td>${p.category}</td><td>${money(p.price)}</td><td>${p.stock}</td><td>${p.sizes}</td><td><button class="action" onclick="editProduct(${p.id})">EDIT</button><button class="action danger" onclick="deleteProduct(${p.id})">DELETE</button></td></tr>`).join("");
-}
-function renderOrders(os){$("orderRows").innerHTML=os.map(o=>`<tr><td>#${o.id}</td><td>${o.customer_name}<br><small>${o.email}</small></td><td>${money(o.total)}</td><td>${o.item_count}</td><td><select onchange="status(${o.id},this.value)">${["Pending","Confirmed","Shipped","Delivered","Cancelled"].map(s=>`<option ${s===o.status?"selected":""}>${s}</option>`).join("")}</select></td><td>${new Date(o.created_at).toLocaleString()}</td></tr>`).join("")}
-function openForm(p=null){editing=p;$("formTitle").textContent=p?"Edit shoe":"Add shoe";const f=$("form");["name","category","price","rating","stock","sizes","image","description"].forEach(k=>f.elements[k].value=p?p[k]:(k==="rating"?5:k==="sizes"?"6,7,8,9,10,11,12":""));$("modal").classList.add("open")}
-$("form").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));let r=await fetch(editing?"/api/products/"+editing.id:"/api/products",{method:editing?"PUT":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});let d=await r.json();if(!r.ok)return toast(d.error);$("modal").classList.remove("open");toast(editing?"Product updated":"Product added");refresh()};
-async function editProduct(id){openForm(products.find(p=>p.id===id))}
-async function deleteProduct(id){if(!confirm("Delete this shoe?"))return;let r=await fetch("/api/products/"+id,{method:"DELETE"});if(r.ok){toast("Product deleted");refresh()}}
-async function status(id,status){await fetch("/api/orders/"+id,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({status})});toast("Order updated");refresh()}
-function toast(t){$("toast").textContent=t;$("toast").classList.add("show");setTimeout(()=>$("toast").classList.remove("show"),1600)}
-$("newBtn").onclick=()=>openForm();$("close").onclick=()=>$("modal").classList.remove("open");$("search").oninput=renderProducts;refresh();
+const $=x=>document.getElementById(x),money=n=>'₹'+Number(n||0).toLocaleString('en-IN');
+let products=[];
+async function api(url,options={}){const r=await fetch(url,options);let data=null;try{data=await r.json()}catch(e){}if(!r.ok)throw new Error(data?.error||'Request failed');return data}
+async function refresh(){try{const [ps,os,st]=await Promise.all([api('/api/products'),api('/api/orders'),api('/api/stats')]);products=ps;$("productsStat").textContent=st.products;$("stockStat").textContent=st.lowStock;$("ordersStat").textContent=st.orders;$("revenueStat").textContent=money(st.revenue);renderProducts();renderOrders(os)}catch(e){toast(e.message)}}
+function renderProducts(){const q=$("search").value.trim().toLowerCase();const list=products.filter(p=>(p.name+' '+p.category+' '+(p.gender||'')).toLowerCase().includes(q));$("productRows").innerHTML=list.length?list.map(p=>`<tr><td><img src="${p.image}" alt="">${p.name}</td><td>${p.category}</td><td>${money(p.price)}</td><td>${p.stock}</td><td>${p.sizes}</td><td><button class="action" onclick="editProduct(${p.id})">EDIT</button><button class="action danger" onclick="deleteProduct(${p.id})">DELETE</button></td></tr>`).join(''):'<tr><td colspan="6">No products found.</td></tr>'}
+function renderOrders(os){$("orderRows").innerHTML=os.length?os.map(o=>`<tr><td>#${o.id}</td><td>${o.customer_name}<br><small>${o.email}</small></td><td>${money(o.total)}</td><td>${o.item_count}</td><td><select onchange="status(${o.id},this.value)">${['Pending','Confirmed','Shipped','Delivered','Cancelled'].map(s=>`<option value="${s}" ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td><td>${new Date(o.created_at).toLocaleString()}</td></tr>`).join(''):'<tr><td colspan="6">No orders yet.</td></tr>'}
+function openForm(p=null){editing=p;$("formTitle").textContent=p?'Edit shoe':'Add shoe';const f=$("form");['name','category','price','rating','stock','sizes','image','description'].forEach(k=>f.elements[k].value=p?p[k]:(k==='rating'?5:k==='sizes'?'6,7,8,9,10,11,12':''));$("modal").classList.add('open');f.elements.name.focus()}
+$("form").onsubmit=async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target));body.price=Number(body.price);body.rating=Number(body.rating||5);body.stock=Number(body.stock);try{await api(editing?'/api/products/'+editing.id:'/api/products',{method:editing?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});$("modal").classList.remove('open');toast(editing?'Product updated':'Product added');refresh()}catch(err){toast(err.message)}};
+async function editProduct(id){const p=products.find(x=>Number(x.id)===Number(id));if(p)openForm(p)}
+async function deleteProduct(id){if(!confirm('Delete this shoe?'))return;try{await api('/api/products/'+id,{method:'DELETE'});toast('Product deleted');refresh()}catch(e){toast(e.message)}}
+async function status(id,value){try{await api('/api/orders/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:value})});toast('Order updated');refresh()}catch(e){toast(e.message);refresh()}}
+function toast(t){$("toast").textContent=t;$("toast").classList.add('show');clearTimeout(window.adminToast);window.adminToast=setTimeout(()=>$("toast").classList.remove('show'),1700)}
+$("newBtn").onclick=()=>openForm();$("close").onclick=()=>$("modal").classList.remove('open');$("search").oninput=renderProducts;$("modal").onclick=e=>{if(e.target===$("modal"))$("modal").classList.remove('open')};document.addEventListener('keydown',e=>{if(e.key==='Escape')$("modal").classList.remove('open')});refresh();
