@@ -1,7 +1,13 @@
 {
-  "name":"solevault-fullstack",
-  "version":"1.0.0",
-  "private":true,
-  "scripts":{"dev":"node server.js","start":"node server.js"},
-  "dependencies":{"better-sqlite3":"^11.8.1","express":"^4.21.2"}
+  "name": "solevault-fullstack",
+  "version": "1.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "pg": "^8.16.3"
+  }
 }
