@@ -1,2 +1,2 @@
-const app = require('../server-clean');
+const app = require('../server');
 module.exports = app;
