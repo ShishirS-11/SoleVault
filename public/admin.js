@@ -1,135 +1,17 @@
-let editing = null;
-let products = [];
-const $ = id => document.getElementById(id);
-const money = n => '₹' + Number(n || 0).toLocaleString('en-IN');
-const escapeHtml = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-
-async function api(url, options = {}) {
-  const response = await fetch(url, options);
-  let data = null;
-  try { data = await response.json(); } catch (_) {}
-  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
-  return data;
-}
-
-function setFavicon() {
-  let link = document.querySelector('link[rel="icon"]');
-  if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
-  link.href = '/favicon.svg';
-}
-
-async function refresh() {
-  try {
-    const [ps, os, st] = await Promise.all([api('/api/products'), api('/api/orders'), api('/api/stats')]);
-    products = Array.isArray(ps) ? ps : [];
-    $('productsStat').textContent = st.products ?? 0;
-    $('stockStat').textContent = st.lowStock ?? 0;
-    $('ordersStat').textContent = st.orders ?? 0;
-    $('revenueStat').textContent = money(st.revenue);
-    renderProducts();
-    renderOrders(Array.isArray(os) ? os : []);
-    $('dbStatus').textContent = 'DATABASE CONNECTED';
-    $('dbStatus').className = 'status online';
-  } catch (error) {
-    $('dbStatus').textContent = 'DATABASE ERROR';
-    $('dbStatus').className = 'status offline';
-    toast(error.message);
-  }
-}
-
-function renderProducts() {
-  const query = $('search').value.trim().toLowerCase();
-  const list = products.filter(p => `${p.name} ${p.category} ${p.gender || ''}`.toLowerCase().includes(query));
-  $('productRows').innerHTML = list.length ? list.map(p => `
-    <tr>
-      <td><div class="product-cell"><img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}"><div><strong>${escapeHtml(p.name)}</strong><small>${escapeHtml(p.gender || 'Unisex')}</small></div></div></td>
-      <td><span class="tag">${escapeHtml(p.category)}</span></td>
-      <td><strong>${money(p.price)}</strong></td>
-      <td><span class="stock ${Number(p.stock) <= 5 ? 'low' : ''}">${p.stock}</span></td>
-      <td>${escapeHtml(p.sizes)}</td>
-      <td><button class="action" onclick="editProduct(${Number(p.id)})">EDIT</button><button class="action danger" onclick="deleteProduct(${Number(p.id)})">DELETE</button></td>
-    </tr>`).join('') : `<tr><td colspan="6"><div class="empty-table"><b>No products yet.</b><span>Add your first shoe to publish it on the storefront.</span><button class="primary" onclick="openForm()">+ ADD FIRST SHOE</button></div></td></tr>`;
-}
-
-function renderOrders(list) {
-  $('orderRows').innerHTML = list.length ? list.map(o => `
-    <tr>
-      <td><strong>#${o.id}</strong></td>
-      <td><strong>${escapeHtml(o.customer_name)}</strong><small>${escapeHtml(o.email)}</small></td>
-      <td><strong>${money(o.total)}</strong></td>
-      <td>${o.item_count}</td>
-      <td><select class="status-select" onchange="updateStatus(${Number(o.id)},this.value)">${['Pending','Confirmed','Shipped','Delivered','Cancelled'].map(s => `<option ${s === o.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-      <td>${new Date(o.created_at).toLocaleString()}</td>
-    </tr>`).join('') : '<tr><td colspan="6"><div class="empty-table"><b>No orders yet.</b><span>Orders placed through the storefront will appear here.</span></div></td></tr>';
-}
-
-function openForm(product = null) {
-  editing = product;
-  const form = $('form');
-  $('formTitle').textContent = product ? 'Edit product' : 'Add a new shoe';
-  $('formSub').textContent = product ? 'Update the product details below.' : 'Add a product and it will appear on the storefront immediately.';
-  form.elements.name.value = product?.name || '';
-  form.elements.category.value = product?.category || 'Sneakers';
-  form.elements.gender.value = product?.gender || 'Unisex';
-  form.elements.price.value = product?.price ?? '';
-  form.elements.rating.value = product?.rating ?? 5;
-  form.elements.stock.value = product?.stock ?? 0;
-  form.elements.sizes.value = product?.sizes || '6,7,8,9,10,11,12';
-  form.elements.image.value = product?.image || '';
-  form.elements.description.value = product?.description || '';
-  $('modal').classList.add('open');
-  document.body.classList.add('locked');
-  form.elements.name.focus();
-}
-
-async function saveProduct(event) {
-  event.preventDefault();
-  const form = event.target;
-  const body = Object.fromEntries(new FormData(form));
-  body.price = Number(body.price);
-  body.rating = Number(body.rating || 5);
-  body.stock = Number(body.stock || 0);
-  const button = form.querySelector('button[type="submit"]');
-  button.disabled = true;
-  button.textContent = 'SAVING…';
-  try {
-    await api(editing ? `/api/products/${editing.id}` : '/api/products', {
-      method: editing ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
-    });
-    closeForm();
-    toast(editing ? 'Product updated' : 'Product published to storefront');
-    await refresh();
-  } catch (error) { toast(error.message); }
-  finally { button.disabled = false; button.textContent = 'PUBLISH PRODUCT'; }
-}
-
-function closeForm() { $('modal').classList.remove('open'); document.body.classList.remove('locked'); editing = null; }
-function editProduct(id) { const p = products.find(x => Number(x.id) === Number(id)); if (p) openForm(p); }
-
-async function deleteProduct(id) {
-  const product = products.find(x => Number(x.id) === Number(id));
-  if (!product || !confirm(`Delete “${product.name}”?`)) return;
-  try { await api(`/api/products/${id}`, {method:'DELETE'}); toast('Product deleted'); await refresh(); }
-  catch (error) { toast(error.message); }
-}
-
-async function updateStatus(id, status) {
-  try { await api(`/api/orders/${id}`, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})}); toast('Order status updated'); await refresh(); }
-  catch (error) { toast(error.message); await refresh(); }
-}
-
-function toast(message) {
-  $('toast').textContent = message;
-  $('toast').classList.add('show');
-  clearTimeout(window.adminToast);
-  window.adminToast = setTimeout(() => $('toast').classList.remove('show'), 2200);
-}
-
-$('newBtn').onclick = () => openForm();
-$('close').onclick = closeForm;
-$('form').onsubmit = saveProduct;
-$('search').oninput = renderProducts;
-$('modal').onclick = e => { if (e.target === $('modal')) closeForm(); };
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeForm(); });
-setFavicon();
-refresh();
+let editing=null,editingOffer=null,products=[],offers=[];const $=id=>document.getElementById(id),money=n=>'₹'+Number(n||0).toLocaleString('en-IN'),esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+async function api(url,opt={}){const r=await fetch(url,opt);let d=null;try{d=await r.json()}catch(_){}if(!r.ok)throw new Error(d?.error||`Request failed (${r.status})`);return d}
+function setFavicon(){let l=document.querySelector('link[rel="icon"]')||document.createElement('link');l.rel='icon';l.href='/favicon.svg';document.head.appendChild(l)}
+async function refresh(){try{const[ps,os,st,of]=await Promise.all([api('/api/products'),api('/api/orders'),api('/api/stats'),api('/api/admin/offers')]);products=Array.isArray(ps)?ps:[];offers=Array.isArray(of)?of:[];$('productsStat').textContent=st.products??0;$('stockStat').textContent=st.lowStock??0;$('ordersStat').textContent=st.orders??0;$('revenueStat').textContent=money(st.revenue);renderProducts();renderOrders(os);renderOffers();$('dbStatus').textContent='DATABASE CONNECTED';$('dbStatus').className='status online'}catch(e){$('dbStatus').textContent='DATABASE ERROR';$('dbStatus').className='status offline';toast(e.message)}}
+function renderProducts(){const q=$('search').value.trim().toLowerCase(),list=products.filter(p=>`${p.name} ${p.category} ${p.gender||''}`.toLowerCase().includes(q));$('productRows').innerHTML=list.length?list.map(p=>`<tr><td><div class="product-cell"><img src="${esc(p.image)}" alt="${esc(p.name)}"><div><strong>${esc(p.name)}</strong><small>${esc(p.gender||'Unisex')}</small></div></div></td><td><span class="tag">${esc(p.category)}</span></td><td><strong>${money(p.price)}</strong></td><td><span class="stock ${Number(p.stock)<=5?'low':''}">${p.stock}</span></td><td>${esc(p.sizes)}</td><td><button class="action" onclick="editProduct(${p.id})">EDIT</button><button class="action danger" onclick="deleteProduct(${p.id})">DELETE</button></td></tr>`).join(''):`<tr><td colspan="6"><div class="empty-table"><b>No products yet.</b><span>Add your first shoe to publish it on the storefront.</span><button class="primary" onclick="openForm()">+ ADD FIRST SHOE</button></div></td></tr>`}
+function renderOrders(list){$('orderRows').innerHTML=list.length?list.map(o=>`<tr><td><strong>#${o.id}</strong></td><td><strong>${esc(o.customer_name)}</strong><small>${esc(o.email)}</small></td><td><strong>${money(o.total)}</strong></td><td>${o.item_count}</td><td><select class="status-select" onchange="updateStatus(${o.id},this.value)">${['Pending','Confirmed','Shipped','Delivered','Cancelled'].map(s=>`<option ${s===o.status?'selected':''}>${s}</option>`).join('')}</select></td><td>${new Date(o.created_at).toLocaleString()}</td></tr>`).join(''):'<tr><td colspan="6"><div class="empty-table"><b>No orders yet.</b><span>Orders placed through the storefront will appear here.</span></div></td></tr>'}
+function renderOffers(){const now=Date.now();$('offerList').innerHTML=offers.length?offers.map(o=>{const end=new Date(o.end_at),expired=end<=now;return`<div class="offer-row ${expired?'expired':''}"><div><span class="offer-state ${o.active&&!expired?'live':''}">${o.active&&!expired?'LIVE':'INACTIVE / EXPIRED'}</span><h3>${esc(o.title)}</h3><p>${esc(o.subtitle||'No subtitle')}</p></div><div class="offer-meta"><b>${end.toLocaleString()}</b><span>${expired?'Countdown ended':'Countdown active on storefront'}</span></div><div><button class="action" onclick="editOffer(${o.id})">EDIT</button><button class="action danger" onclick="deleteOffer(${o.id})">DELETE</button></div></div>`}).join(''):'<div class="empty-table"><b>No offers created.</b><span>Create a Vault Drop and its timer will appear on the storefront.</span><button class="primary" onclick="openOfferForm()">+ ADD OFFER</button></div>'}
+function openForm(p=null){editing=p;const f=$('form');$('formTitle').textContent=p?'Edit product':'Add a new shoe';$('formSub').textContent=p?'Update the product details below.':'Add a product and it will appear on the storefront immediately.';f.elements.name.value=p?.name||'';f.elements.category.value=p?.category||'Sneakers';f.elements.gender.value=p?.gender||'Unisex';f.elements.price.value=p?.price??'';f.elements.rating.value=p?.rating??5;f.elements.stock.value=p?.stock??0;f.elements.sizes.value=p?.sizes||'6,7,8,9,10,11,12';f.elements.image.value=p?.image||'';f.elements.description.value=p?.description||'';$('modal').classList.add('open');document.body.classList.add('locked')}
+async function saveProduct(e){e.preventDefault();const f=e.target,b=Object.fromEntries(new FormData(f));b.price=Number(b.price);b.rating=Number(b.rating||5);b.stock=Number(b.stock||0);const btn=f.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='SAVING…';try{await api(editing?`/api/products/${editing.id}`:'/api/products',{method:editing?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});closeForm();toast(editing?'Product updated':'Product published');await refresh()}catch(e){toast(e.message)}finally{btn.disabled=false;btn.textContent='PUBLISH PRODUCT'}}
+function closeForm(){ $('modal').classList.remove('open');document.body.classList.remove('locked');editing=null}function editProduct(id){const p=products.find(x=>Number(x.id)===Number(id));if(p)openForm(p)}async function deleteProduct(id){const p=products.find(x=>Number(x.id)===Number(id));if(!p||!confirm(`Delete “${p.name}”?`))return;try{await api(`/api/products/${id}`,{method:'DELETE'});toast('Product deleted');await refresh()}catch(e){toast(e.message)}}
+function openOfferForm(o=null){editingOffer=o;const f=$('offerForm');$('offerFormTitle').textContent=o?'Edit offer':'Create an offer';f.elements.title.value=o?.title||'';f.elements.subtitle.value=o?.subtitle||'';f.elements.end_at.value=o?new Date(o.end_at).toISOString().slice(0,16):'';f.elements.active.checked=o?!!o.active:true;$('offerModal').classList.add('open');document.body.classList.add('locked');f.elements.title.focus()}
+function editOffer(id){const o=offers.find(x=>Number(x.id)===Number(id));if(o)openOfferForm(o)}
+async function saveOffer(e){e.preventDefault();const f=e.target,b=Object.fromEntries(new FormData(f));b.active=f.elements.active.checked;const btn=f.querySelector('button[type="submit"]');btn.disabled=true;btn.textContent='SAVING…';try{await api(editingOffer?`/api/offers/${editingOffer.id}`:'/api/offers',{method:editingOffer?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});closeOfferForm();toast(editingOffer?'Offer updated':'Offer published');await refresh()}catch(e){toast(e.message)}finally{btn.disabled=false;btn.textContent='PUBLISH OFFER'}}
+function closeOfferForm(){$('offerModal').classList.remove('open');document.body.classList.remove('locked');editingOffer=null}async function deleteOffer(id){const o=offers.find(x=>Number(x.id)===Number(id));if(!o||!confirm(`Delete “${o.title}”?`))return;try{await api(`/api/offers/${id}`,{method:'DELETE'});toast('Offer deleted');await refresh()}catch(e){toast(e.message)}}
+async function updateStatus(id,status){try{await api(`/api/orders/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status})});toast('Order status updated');await refresh()}catch(e){toast(e.message);await refresh()}}
+function toast(m){$('toast').textContent=m;$('toast').classList.add('show');clearTimeout(window.adminToast);window.adminToast=setTimeout(()=>$('toast').classList.remove('show'),2200)}
+$('newBtn').onclick=()=>openForm();$('close').onclick=closeForm;$('form').onsubmit=saveProduct;$('search').oninput=renderProducts;$('modal').onclick=e=>{if(e.target===$('modal'))closeForm()};$('newOfferBtn').onclick=()=>openOfferForm();$('offerClose').onclick=closeOfferForm;$('offerForm').onsubmit=saveOffer;$('offerModal').onclick=e=>{if(e.target===$('offerModal'))closeOfferForm()};document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeForm();closeOfferForm()}});setFavicon();refresh();
