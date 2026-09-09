@@ -6,5 +6,9 @@
 .pdp-gallery .main-image img{width:100%;height:100%;object-fit:contain;padding:28px;image-rendering:auto;}
 .pdp-gallery #thumbs img,.saved-row img,.cart-row img{object-fit:contain;background:#f4f4f4;padding:6px;image-rendering:auto;}
 .hero-art img,.drop-image img,.stories img{image-rendering:auto;}
-/* Keep externally hosted originals at their natural visual quality; never fake sharpness. */
 img{image-rendering:auto;}
+
+/* New calm futuristic SoleVault header logo */
+.site-header .brand{width:205px;height:48px;display:block;background:url('/logo.svg') left center/205px auto no-repeat;overflow:hidden;}
+.site-header .brand span,.site-header .brand b{display:none;}
+@media(max-width:760px){.site-header .brand{width:170px;height:42px;background-size:170px auto;}}
