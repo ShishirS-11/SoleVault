@@ -1,1 +1,32 @@
-<!doctype html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SoleVault Admin</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><link rel="stylesheet" href="admin.css"></head><body><header><a href="/" class="logo">SOLE<span>VAULT</span></a><a href="/">← Store</a></header><main><div class="top"><div><p>ADMIN PANEL</p><h1>Manage the store.</h1></div><button class="primary" id="newBtn">+ ADD SHOE</button></div><section class="stats"><div><span>PRODUCTS</span><b id="productsStat">0</b></div><div><span>LOW STOCK</span><b id="stockStat">0</b></div><div><span>ORDERS</span><b id="ordersStat">0</b></div><div><span>REVENUE</span><b id="revenueStat">₹0</b></div></section><section class="panel"><div class="panelhead"><h2>Products</h2><input id="search" placeholder="Search products..."></div><div class="tablewrap"><table><thead><tr><th>Product</th><th>Category</th><th>Price</th><th>Stock</th><th>Sizes</th><th>Actions</th></tr></thead><tbody id="productRows"></tbody></table></div></section><section class="panel"><div class="panelhead"><h2>Orders</h2></div><div class="tablewrap"><table><thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Items</th><th>Status</th><th>Date</th></tr></thead><tbody id="orderRows"></tbody></table></div></section></main><div class="modal" id="modal"><form id="form"><button type="button" class="close" id="close">×</button><h2 id="formTitle">Add shoe</h2><input name="name" placeholder="Shoe name" required><select name="category"><option>Sneakers</option><option>Running</option><option>Casual</option><option>Boots</option><option>Sports</option><option>Formal</option></select><div class="tw"><input name="price" type="number" placeholder="Price ₹" required><input name="rating" type="number" min="0" max="5" step=".1" placeholder="Rating"></div><input name="stock" type="number" placeholder="Stock" required><input name="sizes" placeholder="Sizes e.g. 6,7,8,9,10,11,12" value="6,7,8,9,10,11,12"><input name="image" placeholder="Product image URL" required><textarea name="description" placeholder="Description"></textarea><button class="primary">SAVE PRODUCT</button></form></div><div class="toast" id="toast"></div><script src="admin.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="SoleVault store administration">
+<title>SoleVault Admin — Store Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<header><a href="/" class="logo"><span>SV</span><strong>SOLEVAULT</strong></a><div class="header-right"><span id="dbStatus" class="status">CONNECTING…</span><a href="/">VIEW STORE ↗</a></div></header>
+<main>
+<section class="top"><div><p class="eyebrow">SOLEVAULT / ADMIN</p><h1>Run your <em>store.</em></h1><span class="sub">Products, inventory and orders — all connected to your live database.</span></div><button class="primary" id="newBtn">＋ ADD PRODUCT</button></section>
+<section class="stats">
+<div class="stat-card c1"><span>CATALOGUE</span><b id="productsStat">—</b><small>Live products</small></div>
+<div class="stat-card c2"><span>LOW STOCK</span><b id="stockStat">—</b><small>5 units or less</small></div>
+<div class="stat-card c3"><span>ORDERS</span><b id="ordersStat">—</b><small>All-time orders</small></div>
+<div class="stat-card c4"><span>REVENUE</span><b id="revenueStat">₹0</b><small>Excluding cancelled</small></div>
+</section>
+<section class="panel"><div class="panelhead"><div><span class="eyebrow">CATALOGUE</span><h2>Products</h2></div><div class="search"><span>⌕</span><input id="search" placeholder="Search name, category or audience…"></div></div><div class="tablewrap"><table><thead><tr><th>PRODUCT</th><th>CATEGORY</th><th>PRICE</th><th>STOCK</th><th>SIZES</th><th>ACTIONS</th></tr></thead><tbody id="productRows"></tbody></table></div></section>
+<section class="panel"><div class="panelhead"><div><span class="eyebrow">FULFILMENT</span><h2>Orders</h2></div><span class="hint">Change a status to update it live.</span></div><div class="tablewrap"><table><thead><tr><th>ORDER</th><th>CUSTOMER</th><th>TOTAL</th><th>ITEMS</th><th>STATUS</th><th>DATE</th></tr></thead><tbody id="orderRows"></tbody></table></div></section>
+</main>
+<div class="modal" id="modal"><form id="form"><button type="button" class="close" id="close">×</button><span class="eyebrow">PRODUCT EDITOR</span><h2 id="formTitle">Add a new shoe</h2><p id="formSub">Add a product and it will appear on the storefront immediately.</p>
+<label>PRODUCT NAME<input name="name" placeholder="e.g. Apex Runner" required></label>
+<div class="tw"><label>CATEGORY<select name="category"><option>Sneakers</option><option>Running</option><option>Casual</option><option>Boots</option><option>Sports</option><option>Formal</option></select></label><label>AUDIENCE<select name="gender"><option>Unisex</option><option>Men</option><option>Women</option><option>Kids</option></select></label></div>
+<div class="tw"><label>PRICE (₹)<input name="price" type="number" min="1" step="1" placeholder="7999" required></label><label>RATING<input name="rating" type="number" min="0" max="5" step="0.1" value="5"></label></div>
+<div class="tw"><label>STOCK<input name="stock" type="number" min="0" step="1" placeholder="25" required></label><label>SIZES<input name="sizes" placeholder="6,7,8,9,10,11,12" value="6,7,8,9,10,11,12"></label></div>
+<label>PRODUCT IMAGE URL<input name="image" type="url" placeholder="https://…" required></label>
+<label>DESCRIPTION<textarea name="description" placeholder="Short product description…"></textarea></label>
+<button class="primary submit" type="submit">PUBLISH PRODUCT</button>
+</form></div><div class="toast" id="toast"></div><script src="admin.js?v=2"></script>
+</body></html>
